@@ -1,5 +1,8 @@
 """1X2 от Betano.bg — Playwright, скрол до края, DOM от предстоящи мачове + текст/td."""
 
+# Браузърът се пуска през scrapers._common_1x2.default_playwright_context с
+# CHROMIUM_LAUNCH_ARGS (--no-sandbox, --disable-setuid-sandbox, …) за Railway/Docker.
+
 from __future__ import annotations
 
 import re

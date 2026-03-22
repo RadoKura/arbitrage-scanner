@@ -7,6 +7,14 @@ from typing import Any
 
 _ODDS_RE = re.compile(r"\d+[.,]\d{2,3}")
 
+# Chromium в Docker / Railway (няма setuid sandbox, ограничен /dev/shm).
+CHROMIUM_LAUNCH_ARGS: list[str] = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-blink-features=AutomationControlled",
+]
+
 
 def normalize_match_label(home: str, away: str) -> str:
     h = re.sub(r"\s+", " ", home.strip()).lower()
@@ -280,7 +288,7 @@ def rows_td_vs_playwright(page: Any, book: str) -> list[dict[str, Any]]:
 def default_playwright_context(p: Any, locale: str = "bg-BG", headless: bool = True):
     browser = p.chromium.launch(
         headless=headless,
-        args=["--disable-blink-features=AutomationControlled"],
+        args=CHROMIUM_LAUNCH_ARGS,
     )
     context = browser.new_context(
         locale=locale,

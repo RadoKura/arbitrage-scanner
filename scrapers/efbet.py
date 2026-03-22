@@ -114,14 +114,14 @@ def fetch_football_upcoming(
     try:
         from playwright.sync_api import sync_playwright
 
-        from scrapers._common_1x2 import scroll_to_bottom_stable
+        from scrapers._common_1x2 import CHROMIUM_LAUNCH_ARGS, scroll_to_bottom_stable
     except ImportError:
         return []
 
     rows: list[dict[str, Any]] = []
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
             context = browser.new_context(locale="bg-BG")
             page = context.new_page()
             page.goto(start_url, wait_until="domcontentloaded", timeout=timeout_ms)
@@ -165,13 +165,15 @@ def fetch_football_two_way(
     """
     try:
         from playwright.sync_api import sync_playwright
+
+        from scrapers._common_1x2 import CHROMIUM_LAUNCH_ARGS
     except ImportError:
         return []
 
     rows: list[dict[str, Any]] = []
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
             context = browser.new_context(locale="bg-BG")
             page = context.new_page()
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
