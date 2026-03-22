@@ -155,8 +155,8 @@ def _rows_winbet_live_from_page(page: Any) -> list[dict[str, Any]]:
 
 
 def fetch_football_upcoming(
-    timeout_ms: int = 90_000,
-    wait_after_load_ms: int = 8_000,
+    timeout_ms: int = 120_000,
+    wait_after_load_ms: int = 15_000,
 ) -> list[dict[str, Any]]:
     """
     Предматч (карусел) + На живо (футбол) в една сесия.
@@ -165,7 +165,12 @@ def fetch_football_upcoming(
     try:
         from playwright.sync_api import sync_playwright
 
-        from scrapers._common_1x2 import CHROMIUM_LAUNCH_ARGS, merge_rows_by_label_casefold
+        from scrapers._common_1x2 import (
+            CHROMIUM_LAUNCH_ARGS,
+            merge_rows_by_label_casefold,
+            page_soft_wait_selector,
+            playwright_context_options,
+        )
     except ImportError:
         return []
 
@@ -173,9 +178,18 @@ def fetch_football_upcoming(
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
-            context = browser.new_context(locale="bg-BG")
+            context = browser.new_context(**playwright_context_options())
             page = context.new_page()
-            page.goto(FOOTBALL_URL, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.goto(
+                FOOTBALL_URL,
+                wait_until="domcontentloaded",
+                timeout=max(60_000, timeout_ms),
+            )
+            page_soft_wait_selector(
+                page,
+                f"{_BLOCK_SELECTOR}, {_LIVE_ROW_SELECTOR}, body",
+                timeout_ms=30_000,
+            )
             page.wait_for_timeout(2000)
             _dismiss_cookie_banner(page)
             page.wait_for_timeout(wait_after_load_ms)
@@ -210,13 +224,17 @@ def fetch_football_for_scan() -> list[dict[str, Any]]:
 
 def fetch_football_two_way(
     url: str = FOOTBALL_URL,
-    timeout_ms: int = 90_000,
-    wait_after_load_ms: int = 10_000,
+    timeout_ms: int = 120_000,
+    wait_after_load_ms: int = 15_000,
 ) -> list[dict[str, Any]]:
     try:
         from playwright.sync_api import sync_playwright
 
-        from scrapers._common_1x2 import CHROMIUM_LAUNCH_ARGS
+        from scrapers._common_1x2 import (
+            CHROMIUM_LAUNCH_ARGS,
+            page_soft_wait_selector,
+            playwright_context_options,
+        )
     except ImportError:
         return []
 
@@ -224,9 +242,18 @@ def fetch_football_two_way(
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
-            context = browser.new_context(locale="bg-BG")
+            context = browser.new_context(**playwright_context_options())
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=max(60_000, timeout_ms),
+            )
+            page_soft_wait_selector(
+                page,
+                f"{_BLOCK_SELECTOR}, body",
+                timeout_ms=30_000,
+            )
             page.wait_for_timeout(2000)
             _dismiss_cookie_banner(page)
             page.wait_for_timeout(wait_after_load_ms)

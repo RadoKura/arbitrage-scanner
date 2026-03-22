@@ -153,8 +153,8 @@ def rows_betano_pre_event_playwright(page: Any, book: str) -> list[dict[str, Any
 
 def fetch_football_two_way(
     url: str = UPCOMING_MATCHES_URL,
-    timeout_ms: int = 90_000,
-    wait_after_load_ms: int = 24_000,
+    timeout_ms: int = 120_000,
+    wait_after_load_ms: int = 30_000,
 ) -> list[dict[str, Any]]:
     try:
         from playwright.sync_api import sync_playwright
@@ -162,6 +162,7 @@ def fetch_football_two_way(
         from scrapers._common_1x2 import (
             default_playwright_context,
             merge_rows_by_label,
+            page_soft_wait_selector,
             parse_body_lines_1x2,
             parse_body_lines_1x2_backward,
             rows_td_vs_playwright,
@@ -174,7 +175,16 @@ def fetch_football_two_way(
         with sync_playwright() as p:
             browser, context = default_playwright_context(p)
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=max(60_000, timeout_ms),
+            )
+            page_soft_wait_selector(
+                page,
+                '[data-qa="pre-event"], [data-testid="landing-modal"], body',
+                timeout_ms=30_000,
+            )
             page.wait_for_timeout(5000)
             _dismiss_landing_modal(page)
             _dismiss_cookies(page)

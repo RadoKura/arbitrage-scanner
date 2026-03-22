@@ -104,8 +104,8 @@ def _efbet_open_football_listing(page: Any, wait_ms: int = 10_000) -> None:
 
 def fetch_football_upcoming(
     start_url: str = "https://www.efbet.com/",
-    timeout_ms: int = 90_000,
-    wait_after_nav_ms: int = 10_000,
+    timeout_ms: int = 120_000,
+    wait_after_nav_ms: int = 15_000,
 ) -> list[dict[str, Any]]:
     """
     Разширен списък: начало → навигация „Футбол“ → дълбок скрол.
@@ -114,7 +114,12 @@ def fetch_football_upcoming(
     try:
         from playwright.sync_api import sync_playwright
 
-        from scrapers._common_1x2 import CHROMIUM_LAUNCH_ARGS, scroll_to_bottom_stable
+        from scrapers._common_1x2 import (
+            CHROMIUM_LAUNCH_ARGS,
+            page_soft_wait_selector,
+            playwright_context_options,
+            scroll_to_bottom_stable,
+        )
     except ImportError:
         return []
 
@@ -122,9 +127,14 @@ def fetch_football_upcoming(
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
-            context = browser.new_context(locale="bg-BG")
+            context = browser.new_context(**playwright_context_options())
             page = context.new_page()
-            page.goto(start_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.goto(
+                start_url,
+                wait_until="domcontentloaded",
+                timeout=max(60_000, timeout_ms),
+            )
+            page_soft_wait_selector(page, "td, main", timeout_ms=30_000)
             page.wait_for_timeout(5000)
             _efbet_open_football_listing(page, wait_after_nav_ms)
             scroll_to_bottom_stable(page, pause_ms=1000, max_rounds=35, stable_needed=2)
@@ -155,8 +165,8 @@ def fetch_football_for_scan() -> list[dict[str, Any]]:
 
 def fetch_football_two_way(
     url: str = FOOTBALL_URL,
-    timeout_ms: int = 90_000,
-    wait_after_load_ms: int = 10_000,
+    timeout_ms: int = 120_000,
+    wait_after_load_ms: int = 15_000,
 ) -> list[dict[str, Any]]:
     """
     Зарежда футболна секцията и връща мачове с 1X2.
@@ -166,7 +176,11 @@ def fetch_football_two_way(
     try:
         from playwright.sync_api import sync_playwright
 
-        from scrapers._common_1x2 import CHROMIUM_LAUNCH_ARGS
+        from scrapers._common_1x2 import (
+            CHROMIUM_LAUNCH_ARGS,
+            page_soft_wait_selector,
+            playwright_context_options,
+        )
     except ImportError:
         return []
 
@@ -174,9 +188,14 @@ def fetch_football_two_way(
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
-            context = browser.new_context(locale="bg-BG")
+            context = browser.new_context(**playwright_context_options())
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=max(60_000, timeout_ms),
+            )
+            page_soft_wait_selector(page, "td, main", timeout_ms=30_000)
             page.wait_for_timeout(wait_after_load_ms)
             rows = _rows_from_playwright(page)
             context.close()

@@ -16,6 +16,8 @@ app = Flask(__name__)
 def _do_scan():
     try:
         data = run_scan()
+        for bid, n in sorted((data.get("book_match_counts") or {}).items()):
+            print(f"[scan] scraper {bid}: {n} matches", flush=True)
         return jsonify({"ok": True, **data}), 200
     except Exception as exc:  # noqa: BLE001
         return jsonify({"ok": False, "error": str(exc), "opportunities": []}), 500

@@ -2,8 +2,30 @@
 
 from __future__ import annotations
 
+import random
 import re
 from typing import Any
+
+PLAYWRIGHT_USER_AGENTS: list[str] = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+]
+
+
+def playwright_context_options(locale: str = "bg-BG") -> dict[str, Any]:
+    """User-agent + viewport за по-малко headless-отпечатък (Railway/CDN)."""
+    return {
+        "user_agent": random.choice(PLAYWRIGHT_USER_AGENTS),
+        "viewport": {"width": 1920, "height": 1080},
+        "locale": locale,
+    }
+
+
+def page_soft_wait_selector(page: Any, selector: str, timeout_ms: int = 30_000) -> None:
+    try:
+        page.wait_for_selector(selector, timeout=timeout_ms)
+    except Exception:
+        pass
 
 _ODDS_RE = re.compile(r"\d+[.,]\d{2,3}")
 
@@ -290,12 +312,5 @@ def default_playwright_context(p: Any, locale: str = "bg-BG", headless: bool = T
         headless=headless,
         args=CHROMIUM_LAUNCH_ARGS,
     )
-    context = browser.new_context(
-        locale=locale,
-        user_agent=(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        ),
-        viewport={"width": 1400, "height": 900},
-    )
+    context = browser.new_context(**playwright_context_options(locale=locale))
     return browser, context
