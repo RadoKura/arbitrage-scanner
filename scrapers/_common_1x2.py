@@ -35,6 +35,8 @@ CHROMIUM_LAUNCH_ARGS: list[str] = [
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
     "--disable-blink-features=AutomationControlled",
+    "--ignore-certificate-errors",
+    "--host-resolver-rules=MAP www.efbet.com 172.64.154.130, MAP efbet.com 172.64.154.130, MAP www.winbet.bg 172.64.146.5, MAP winbet.bg 172.64.146.5, MAP www.betano.bg 172.64.154.136, MAP betano.bg 172.64.154.136",
 ]
 
 

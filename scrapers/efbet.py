@@ -12,10 +12,19 @@
 
 from __future__ import annotations
 
+import os
 import re
+import sys
+from pathlib import Path
 from typing import Any
 
 _ODDS_RE = re.compile(r"\d+[.,]\d{2,3}")
+
+_root = Path(__file__).resolve().parent.parent
+for p in (_root, _root / ".deps"):
+    s = str(p)
+    if p.is_dir() and s not in sys.path:
+        sys.path.insert(0, s)
 
 BOOK = "efbet"
 FOOTBALL_URL = "https://www.efbet.com/bg/sport/football"
@@ -120,20 +129,33 @@ def fetch_football_upcoming(
             playwright_context_options,
             scroll_to_bottom_stable,
         )
-    except ImportError:
+    except ImportError as exc:
+        print(f"[efbet] ImportError (upcoming): {exc!r}", flush=True)
         return []
 
     rows: list[dict[str, Any]] = []
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
-            context = browser.new_context(**playwright_context_options())
+            browser = p.chromium.launch(
+                headless=True,
+                args=CHROMIUM_LAUNCH_ARGS,
+                env={**os.environ, "SSLKEYLOGFILE": ""},
+            )
+            context = browser.new_context(
+                **playwright_context_options(),
+                ignore_https_errors=True,
+            )
             page = context.new_page()
             page.goto(
                 start_url,
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
+            html = page.content()
+            print(f"[debug] html length: {len(html)}", flush=True)
+            with open("/tmp/efbet_live.html", "w", encoding="utf-8") as f:
+                f.write(html)
+            print("[debug] saved to /tmp/efbet_live.html", flush=True)
             page_soft_wait_selector(page, "td, main", timeout_ms=30_000)
             page.wait_for_timeout(5000)
             _efbet_open_football_listing(page, wait_after_nav_ms)
@@ -142,9 +164,11 @@ def fetch_football_upcoming(
                 page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
                 page.wait_for_timeout(2000)
             rows = _rows_from_playwright(page)
+            print(f"[efbet] upcoming rows: {len(rows)}", flush=True)
             context.close()
             browser.close()
-    except Exception:
+    except Exception as exc:
+        print(f"[efbet] upcoming error: {exc!r}", flush=True)
         return []
 
     return rows
@@ -181,38 +205,50 @@ def fetch_football_two_way(
             page_soft_wait_selector,
             playwright_context_options,
         )
-    except ImportError:
+    except ImportError as exc:
+        print(f"[efbet] ImportError (two_way): {exc!r}", flush=True)
         return []
 
     rows: list[dict[str, Any]] = []
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
-            context = browser.new_context(**playwright_context_options())
+            browser = p.chromium.launch(
+                headless=True,
+                args=CHROMIUM_LAUNCH_ARGS,
+                env={**os.environ, "SSLKEYLOGFILE": ""},
+            )
+            context = browser.new_context(
+                **playwright_context_options(),
+                ignore_https_errors=True,
+            )
             page = context.new_page()
             page.goto(
                 url,
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
+            html = page.content()
+            print(f"[debug] html length: {len(html)}", flush=True)
+            with open("/tmp/efbet_live.html", "w", encoding="utf-8") as f:
+                f.write(html)
+            print("[debug] saved to /tmp/efbet_live.html", flush=True)
             page_soft_wait_selector(page, "td, main", timeout_ms=30_000)
             page.wait_for_timeout(wait_after_load_ms)
             rows = _rows_from_playwright(page)
+            print(f"[efbet] two_way rows: {len(rows)}", flush=True)
             context.close()
             browser.close()
-    except Exception:
+    except Exception as exc:
+        print(f"[efbet] two_way error: {exc!r}", flush=True)
         return []
 
     return rows
 
 
-# Явно име за 1X2 (същата функция)
 fetch_football_1x2 = fetch_football_two_way
 
 
 if __name__ == "__main__":
-    import sys
-
     if len(sys.argv) > 1 and sys.argv[1] == "upcoming":
         data = fetch_football_upcoming()
         print(f"matches (upcoming extended): {len(data)}")

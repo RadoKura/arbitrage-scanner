@@ -6,21 +6,122 @@ from __future__ import annotations
 
 import os
 
+import requests
+from dotenv import load_dotenv
 from flask import Flask, Response, jsonify
 
-from main import run_scan
+load_dotenv()
 
 app = Flask(__name__)
 
 
+def _scraper_scan_url() -> str:
+    return os.environ.get("SCRAPER_URL", "http://127.0.0.1:5001/scrape")
+
+
+def _scraper_history_url() -> str:
+    scan_url = _scraper_scan_url().rstrip("/")
+    if scan_url.endswith("/scrape"):
+        return scan_url[: -len("/scrape")] + "/history"
+    return scan_url + "/history"
+
+
+def _scraper_history_clear_url() -> str:
+    return _scraper_history_url().rstrip("/") + "/clear"
+
+
 def _do_scan():
+    scraper_url = _scraper_scan_url()
     try:
-        data = run_scan()
-        for bid, n in sorted((data.get("book_match_counts") or {}).items()):
-            print(f"[scan] scraper {bid}: {n} matches", flush=True)
-        return jsonify({"ok": True, **data}), 200
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"ok": False, "error": str(exc), "opportunities": []}), 500
+        response = requests.get(scraper_url, timeout=120)
+        data = response.json()
+    except requests.RequestException as exc:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": f"SCRAPER_URL request failed: {exc}",
+                    "opportunities": [],
+                }
+            ),
+            502,
+        )
+    except ValueError:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "SCRAPER_URL returned invalid JSON",
+                    "opportunities": [],
+                }
+            ),
+            502,
+        )
+
+    if response.status_code != 200:
+        if isinstance(data, dict):
+            return jsonify(data), 502
+        err = response.text[:500]
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": f"scraper HTTP {response.status_code}: {err}",
+                    "opportunities": [],
+                }
+            ),
+            502,
+        )
+
+    if not isinstance(data, dict):
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": "scraper returned non-object JSON",
+                    "opportunities": [],
+                }
+            ),
+            502,
+        )
+
+    for bid, n in sorted((data.get("book_match_counts") or {}).items()):
+        print(f"[scan] scraper {bid}: {n} matches", flush=True)
+
+    status = 200 if data.get("ok") else 500
+    return jsonify(data), status
+
+
+def _do_history():
+    history_url = _scraper_history_url()
+    try:
+        response = requests.get(history_url, timeout=30)
+        data = response.json()
+    except requests.RequestException as exc:
+        return jsonify({"ok": False, "error": f"HISTORY request failed: {exc}", "history": []}), 502
+    except ValueError:
+        return jsonify({"ok": False, "error": "HISTORY returned invalid JSON", "history": []}), 502
+    if response.status_code != 200:
+        if isinstance(data, dict):
+            return jsonify(data), 502
+        return jsonify({"ok": False, "error": "HISTORY upstream error", "history": []}), 502
+    return jsonify(data), 200
+
+
+def _do_history_clear():
+    clear_url = _scraper_history_clear_url()
+    try:
+        response = requests.post(clear_url, timeout=20)
+        data = response.json()
+    except requests.RequestException as exc:
+        return jsonify({"ok": False, "error": f"HISTORY clear failed: {exc}"}), 502
+    except ValueError:
+        return jsonify({"ok": False, "error": "HISTORY clear returned invalid JSON"}), 502
+    if response.status_code != 200:
+        if isinstance(data, dict):
+            return jsonify(data), 502
+        return jsonify({"ok": False, "error": "HISTORY clear upstream error"}), 502
+    return jsonify(data), 200
 
 
 @app.route("/")
@@ -188,6 +289,139 @@ def index():
     td.odds-cell { font-variant-numeric: tabular-nums; font-size: 0.78rem; line-height: 1.35; }
     td.odds-cell .sub { font-size: 0.68rem; color: var(--muted); margin-bottom: 0.2rem; max-width: 12rem; }
     td.muted-cell { color: var(--dim); }
+    .calc-section {
+      margin-top: 1.35rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 0.9rem;
+      background: var(--surface);
+    }
+    .calc-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .calc-head h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .calc-total {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .calc-total input {
+      width: 6rem;
+      padding: 0.35rem 0.45rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    .calc-sub {
+      margin: 0 0 0.7rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .history-section {
+      margin-top: 1.35rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 0.9rem;
+      background: var(--surface);
+    }
+    .history-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .history-head h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .history-actions {
+      display: inline-flex;
+      gap: 0.5rem;
+    }
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem 0.7rem 1.5rem;
+      }
+      .toolbar {
+        gap: 0.55rem;
+      }
+      .toolbar > button,
+      .toolbar > .badge {
+        width: 100%;
+      }
+      .toolbar > button {
+        padding: 0.65rem 0.8rem;
+      }
+      .toolbar > .thresh {
+        width: calc(50% - 0.3rem);
+        justify-content: space-between;
+      }
+      .toolbar > .thresh input {
+        width: 4rem;
+      }
+      .wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      table {
+        min-width: 760px;
+      }
+      .matches-covered-section .wrap table {
+        min-width: 860px;
+      }
+      .calc-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .calc-total {
+        justify-content: space-between;
+        width: 100%;
+      }
+      .calc-total input {
+        width: 7rem;
+      }
+      .calc-head .btn-secondary {
+        width: 100%;
+      }
+      .calc-section .wrap table {
+        min-width: 880px;
+      }
+      .history-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .history-actions {
+        width: 100%;
+      }
+      .history-actions button {
+        width: 100%;
+      }
+      .history-section .wrap table {
+        min-width: 760px;
+      }
+    }
+    @media (max-width: 480px) {
+      .toolbar > .thresh {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -213,6 +447,28 @@ def index():
     </div>
     <div class="status" id="status" aria-live="polite"></div>
     <div id="out"></div>
+    <section class="calc-section">
+      <div class="calc-head">
+        <h2>🧮 Калкулатор</h2>
+        <label class="calc-total">
+          <span>Обща сума (€):</span>
+          <input type="number" id="calcTotal" min="1" step="1" value="500" />
+        </label>
+        <button type="button" id="calcBtn" class="btn-secondary">Изчисли</button>
+      </div>
+      <p class="calc-sub">Използва последните заредени данни от сканиране (без ново сканиране).</p>
+      <div id="calcOut"></div>
+    </section>
+    <section class="history-section">
+      <div class="history-head">
+        <h2>📈 История</h2>
+        <div class="history-actions">
+          <button type="button" id="historyRefreshBtn" class="btn-secondary">Обнови историята</button>
+          <button type="button" id="historyClearBtn" class="btn-secondary">Изчисти историята</button>
+        </div>
+      </div>
+      <div id="historyOut"></div>
+    </section>
   </main>
   <script>
     const SCAN_MS = 5 * 60 * 1000;
@@ -225,6 +481,12 @@ def index():
     const applyBtn = document.getElementById("applyBtn");
     const csvBtn = document.getElementById("csvBtn");
     const appTitle = document.getElementById("appTitle");
+    const calcTotalInput = document.getElementById("calcTotal");
+    const calcBtn = document.getElementById("calcBtn");
+    const calcOut = document.getElementById("calcOut");
+    const historyOut = document.getElementById("historyOut");
+    const historyRefreshBtn = document.getElementById("historyRefreshBtn");
+    const historyClearBtn = document.getElementById("historyClearBtn");
     const BOOK_IDS = ["efbet", "winbet", "betano", "palmsbet"];
     const BOOK_LABELS = { efbet: "efbet", winbet: "winbet", betano: "Betano", palmsbet: "Palms Bet" };
     let scanBusy = false;
@@ -277,6 +539,127 @@ def index():
         ? " · Последно сканиране: " + lastScanTimeDisplay
         : "";
       status.textContent = lastStatusBase + timePart + " · показани: " + shown + " от " + raw;
+    }
+
+    function parseCalcTotal() {
+      const v = parseFloat(String(calcTotalInput.value || "").replace(",", "."));
+      if (!Number.isFinite(v) || v <= 0) return 100;
+      return v;
+    }
+
+    function formatEur(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return "0.00";
+      return n.toFixed(2);
+    }
+
+    function calcCell(book, odd, stake) {
+      return escapeHtml(String(book || "—")) +
+        " — " +
+        escapeHtml(Number(odd).toFixed(2)) +
+        " (€" +
+        escapeHtml(formatEur(stake)) +
+        ")";
+    }
+
+    function renderCalculatorTable() {
+      if (!lastScanData || !Array.isArray(lastScanData.opportunities)) {
+        calcOut.innerHTML = '<p class="empty">Няма сканиране. Натисни „Сканирай сега“.</p>';
+        return;
+      }
+      const opportunities = lastScanData.opportunities || [];
+      if (!opportunities.length) {
+        calcOut.innerHTML = '<p class="empty">Няма намерени арбитражи в последното сканиране.</p>';
+        return;
+      }
+
+      const total = parseCalcTotal();
+      let h = '<div class="wrap"><table><thead><tr>';
+      h += "<th>Мач</th><th>1</th><th>X</th><th>2</th><th class='num'>Очаквана печалба (€)</th>";
+      h += "</tr></thead><tbody>";
+      for (const o of opportunities) {
+        const scale = total / 100;
+        const s1 = Number(o.stake_1_eur || 0) * scale;
+        const sx = Number(o.stake_x_eur || 0) * scale;
+        const s2 = Number(o.stake_2_eur || 0) * scale;
+        const profitEur = total * (Number(o.profit_percent || 0) / 100);
+        h += "<tr>";
+        h += "<td>" + escapeHtml(String(o.match || "—")) + "</td>";
+        h += "<td>" + calcCell(o.book_1, o.odd_1, s1) + "</td>";
+        h += "<td>" + calcCell(o.book_x, o.odd_x, sx) + "</td>";
+        h += "<td>" + calcCell(o.book_2, o.odd_2, s2) + "</td>";
+        h += "<td class='num pct'>€" + escapeHtml(formatEur(profitEur)) + "</td>";
+        h += "</tr>";
+      }
+      h += "</tbody></table></div>";
+      calcOut.innerHTML = h;
+    }
+
+    function renderHistoryTable(rows) {
+      const historyRows = Array.isArray(rows) ? rows.slice(0, 50) : [];
+      if (!historyRows.length) {
+        historyOut.innerHTML = '<p class="empty">Историята е празна.</p>';
+        return;
+      }
+      let h = '<div class="wrap"><table><thead><tr>';
+      h += "<th>Дата/час</th><th>Мач</th><th>Букмейкъри</th><th class='num'>Печалба %</th>";
+      h += "</tr></thead><tbody>";
+      for (const row of historyRows) {
+        const books = [
+          String(row.book_1 || "—"),
+          String(row.book_x || "—"),
+          String(row.book_2 || "—"),
+        ].join(" / ");
+        const when = row.timestamp
+          ? new Date(row.timestamp).toLocaleString("bg-BG", { hour12: false })
+          : "—";
+        h += "<tr>";
+        h += "<td>" + escapeHtml(when) + "</td>";
+        h += "<td>" + escapeHtml(String(row.match || "—")) + "</td>";
+        h += "<td>" + escapeHtml(books) + "</td>";
+        h += "<td class='num pct'>" + escapeHtml(String(row.profit_percent ?? "—")) + "</td>";
+        h += "</tr>";
+      }
+      h += "</tbody></table></div>";
+      historyOut.innerHTML = h;
+    }
+
+    async function loadHistory() {
+      historyOut.innerHTML = '<p class="empty">Зареждане на история…</p>';
+      try {
+        const res = await fetch("/history", { headers: { "Accept": "application/json" } });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          historyOut.innerHTML =
+            '<p class="empty">Грешка при зареждане на история: ' +
+            escapeHtml(data.error || res.statusText) +
+            "</p>";
+          return;
+        }
+        renderHistoryTable(data.history || []);
+      } catch (e) {
+        historyOut.innerHTML = '<p class="empty">Грешка при заявката за история.</p>';
+      }
+    }
+
+    async function clearHistory() {
+      historyClearBtn.disabled = true;
+      try {
+        const res = await fetch("/history/clear", { method: "POST", headers: { "Accept": "application/json" } });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          historyOut.innerHTML =
+            '<p class="empty">Неуспешно изчистване: ' +
+            escapeHtml(data.error || res.statusText) +
+            "</p>";
+          return;
+        }
+        historyOut.innerHTML = '<p class="empty">Историята е изчистена.</p>';
+      } catch (e) {
+        historyOut.innerHTML = '<p class="empty">Грешка при изчистване на историята.</p>';
+      } finally {
+        historyClearBtn.disabled = false;
+      }
     }
 
     function renderFromCache() {
@@ -340,6 +723,7 @@ def index():
       out.innerHTML = h;
       wireAllMatchesToggle();
       updateStatusLine();
+      renderCalculatorTable();
     }
 
     function escapeHtml(s) {
@@ -510,10 +894,13 @@ def index():
           );
         })();
         renderFromCache();
+        renderCalculatorTable();
+        loadHistory();
       } catch (e) {
         status.textContent = "Грешка при заявката.";
         status.classList.add("err");
         out.innerHTML = "";
+        calcOut.innerHTML = '<p class="empty">Калкулаторът чака успешно сканиране.</p>';
       } finally {
         scanBusy = false;
         btn.disabled = false;
@@ -530,6 +917,15 @@ def index():
       applyThresholdsFromInputs();
       downloadArbitrageCsv();
     });
+    calcBtn.addEventListener("click", () => {
+      renderCalculatorTable();
+    });
+    historyRefreshBtn.addEventListener("click", () => {
+      loadHistory();
+    });
+    historyClearBtn.addEventListener("click", () => {
+      clearHistory();
+    });
     appTitle.addEventListener("click", () => location.reload());
     appTitle.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
@@ -538,6 +934,7 @@ def index():
       }
     });
     runScan(false);
+    loadHistory();
   </script>
 </body>
 </html>"""
@@ -548,6 +945,16 @@ def index():
 @app.route("/api/scan", methods=["GET", "POST"])
 def scan():
     return _do_scan()
+
+
+@app.route("/history", methods=["GET"])
+def history():
+    return _do_history()
+
+
+@app.route("/history/clear", methods=["POST"])
+def history_clear():
+    return _do_history_clear()
 
 
 if __name__ == "__main__":

@@ -171,7 +171,8 @@ def fetch_football_upcoming(
             page_soft_wait_selector,
             playwright_context_options,
         )
-    except ImportError:
+    except ImportError as exc:
+        print(f"[winbet] upcoming ImportError: {exc!r}", flush=True)
         return []
 
     rows: list[dict[str, Any]] = []
@@ -185,6 +186,11 @@ def fetch_football_upcoming(
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
+            html = page.content()
+            print(f"[debug] html length: {len(html)}", flush=True)
+            with open("/tmp/winbet_live.html", "w", encoding="utf-8") as f:
+                f.write(html)
+            print("[debug] saved to /tmp/winbet_live.html", flush=True)
             page_soft_wait_selector(
                 page,
                 f"{_BLOCK_SELECTOR}, {_LIVE_ROW_SELECTOR}, body",
@@ -208,7 +214,8 @@ def fetch_football_upcoming(
             rows = merge_rows_by_label_casefold(prematch, live)
             context.close()
             browser.close()
-    except Exception:
+    except Exception as exc:
+        print(f"[winbet] upcoming error: {exc!r}", flush=True)
         return []
 
     return rows
@@ -235,7 +242,8 @@ def fetch_football_two_way(
             page_soft_wait_selector,
             playwright_context_options,
         )
-    except ImportError:
+    except ImportError as exc:
+        print(f"[winbet] two_way ImportError: {exc!r}", flush=True)
         return []
 
     rows: list[dict[str, Any]] = []
@@ -249,6 +257,11 @@ def fetch_football_two_way(
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
+            html = page.content()
+            print(f"[debug] html length: {len(html)}", flush=True)
+            with open("/tmp/winbet_live.html", "w", encoding="utf-8") as f:
+                f.write(html)
+            print("[debug] saved to /tmp/winbet_live.html", flush=True)
             page_soft_wait_selector(
                 page,
                 f"{_BLOCK_SELECTOR}, body",
@@ -260,7 +273,8 @@ def fetch_football_two_way(
             rows = _rows_from_playwright(page)
             context.close()
             browser.close()
-    except Exception:
+    except Exception as exc:
+        print(f"[winbet] two_way error: {exc!r}", flush=True)
         return []
 
     return rows
