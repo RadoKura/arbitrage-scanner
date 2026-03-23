@@ -12,6 +12,7 @@ from typing import Any
 
 BOOK = "winbet"
 FOOTBALL_URL = "https://www.winbet.bg/sport/football"
+LIVE_FOOTBALL_URL = "https://www.winbet.bg/sport/live/football"
 
 _BLOCK_SELECTOR = "div.egtd-event-slide-l-3"
 _LIVE_ROW_SELECTOR = ".egtd-erow-l1"
@@ -150,6 +151,7 @@ def _rows_winbet_live_from_page(page: Any) -> list[dict[str, Any]]:
         if k in seen:
             continue
         seen.add(k)
+        parsed["is_live"] = True
         out.append(parsed)
     return out
 
@@ -186,11 +188,6 @@ def fetch_football_upcoming(
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
-            html = page.content()
-            print(f"[debug] html length: {len(html)}", flush=True)
-            with open("/tmp/winbet_live.html", "w", encoding="utf-8") as f:
-                f.write(html)
-            print("[debug] saved to /tmp/winbet_live.html", flush=True)
             page_soft_wait_selector(
                 page,
                 f"{_BLOCK_SELECTOR}, {_LIVE_ROW_SELECTOR}, body",
@@ -219,6 +216,44 @@ def fetch_football_upcoming(
         return []
 
     return rows
+
+
+def fetch_football_live(
+    url: str = LIVE_FOOTBALL_URL,
+    timeout_ms: int = 120_000,
+    wait_after_load_ms: int = 15_000,
+) -> list[dict[str, Any]]:
+    """Само live футбол от Winbet."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        from scrapers._common_1x2 import (
+            CHROMIUM_LAUNCH_ARGS,
+            page_soft_wait_selector,
+            playwright_context_options,
+        )
+    except ImportError:
+        return []
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_LAUNCH_ARGS)
+            context = browser.new_context(**playwright_context_options())
+            page = context.new_page()
+            page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=max(60_000, timeout_ms),
+            )
+            page_soft_wait_selector(page, f"{_LIVE_ROW_SELECTOR}, body", timeout_ms=30_000)
+            page.wait_for_timeout(wait_after_load_ms)
+            _dismiss_cookie_banner(page)
+            rows = _rows_winbet_live_from_page(page)
+            context.close()
+            browser.close()
+            return rows
+    except Exception:
+        return []
 
 
 def fetch_football_for_scan() -> list[dict[str, Any]]:
@@ -257,11 +292,6 @@ def fetch_football_two_way(
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
-            html = page.content()
-            print(f"[debug] html length: {len(html)}", flush=True)
-            with open("/tmp/winbet_live.html", "w", encoding="utf-8") as f:
-                f.write(html)
-            print("[debug] saved to /tmp/winbet_live.html", flush=True)
             page_soft_wait_selector(
                 page,
                 f"{_BLOCK_SELECTOR}, body",

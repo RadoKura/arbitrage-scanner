@@ -21,6 +21,7 @@ BOOK = "betano"
 FOOTBALL_URL = "https://www.betano.bg/sport/futbol/"
 # Списъкът с 1X2 на главната е силно орязан; предстоящи мачове има редове pre-event + коефициенти.
 UPCOMING_MATCHES_URL = "https://www.betano.bg/sport/futbol/predstoyashti-machove/"
+LIVE_MATCHES_URL = "https://www.betano.bg/sport/futbol/na-zhivo/"
 
 _SEL_LINE_RE = re.compile(r"^([12xX])\s+(\d+[.,]\d{2,3})$")
 
@@ -201,6 +202,63 @@ def fetch_football_two_way(
             rows_back = parse_body_lines_1x2_backward(body_text, BOOK)
             # DOM редовете последни — приоритет над шум от плосък body текст.
             rows = merge_rows_by_label(rows_td, rows_strict, rows_back, rows_dom)
+
+            context.close()
+            browser.close()
+            return rows
+    except Exception:
+        return []
+
+
+def fetch_football_live(
+    url: str = LIVE_MATCHES_URL,
+    timeout_ms: int = 120_000,
+    wait_after_load_ms: int = 20_000,
+) -> list[dict[str, Any]]:
+    """Live футбол от Betano (1X2)."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        from scrapers._common_1x2 import (
+            default_playwright_context,
+            merge_rows_by_label,
+            page_soft_wait_selector,
+            parse_body_lines_1x2,
+            parse_body_lines_1x2_backward,
+            rows_td_vs_playwright,
+            scroll_to_bottom_stable,
+        )
+    except ImportError:
+        return []
+
+    try:
+        with sync_playwright() as p:
+            browser, context = default_playwright_context(p)
+            page = context.new_page()
+            page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=max(60_000, timeout_ms),
+            )
+            page_soft_wait_selector(
+                page,
+                '[data-qa="pre-event"], [data-testid="landing-modal"], body',
+                timeout_ms=30_000,
+            )
+            page.wait_for_timeout(4000)
+            _dismiss_landing_modal(page)
+            _dismiss_cookies(page)
+            page.wait_for_timeout(wait_after_load_ms)
+            scroll_to_bottom_stable(page, pause_ms=1000, max_rounds=30, stable_needed=2)
+
+            body_text = page.inner_text("body")
+            rows_dom = rows_betano_pre_event_playwright(page, BOOK)
+            rows_td = rows_td_vs_playwright(page, BOOK)
+            rows_strict = parse_body_lines_1x2(body_text, BOOK)
+            rows_back = parse_body_lines_1x2_backward(body_text, BOOK)
+            rows = merge_rows_by_label(rows_td, rows_strict, rows_back, rows_dom)
+            for r in rows:
+                r["is_live"] = True
 
             context.close()
             browser.close()

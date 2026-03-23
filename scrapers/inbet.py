@@ -1,12 +1,4 @@
-"""
-1X2 от Inbet — Playwright.
-
-При директно пускане на файла (`python3 scrapers/inbet.py`) браузърът е видим
-(headful), за да се вижда какво зарежда сайтът. От `main.run_scan()` по подразбиране
-е headless (задай INBET_HEADLESS=0 за видим прозорец и от там).
-
-Селектори: първо td>a с „vs“ (като efbet), после плосък текст (редове 1/X/2).
-"""
+"""1X2 от inbet.bg — Playwright (по модела на winbet)."""
 
 from __future__ import annotations
 
@@ -22,10 +14,7 @@ for p in (_root, _root / ".deps"):
         sys.path.insert(0, s)
 
 BOOK = "inbet"
-URLS = [
-    "https://inbet.bg/sports/football",
-    "https://www.inbet.bg/sports/football",
-]
+FOOTBALL_URL = "https://inbet.bg/sports/football"
 
 
 def _dismiss_cookies(page: Any) -> None:
@@ -119,7 +108,7 @@ def _try_inbet_dom_rows(page: Any) -> list[dict[str, Any]]:
 
 
 def fetch_football_two_way(
-    urls: list[str] | None = None,
+    url: str = FOOTBALL_URL,
     timeout_ms: int = 90_000,
     wait_after_load_ms: int = 20_000,
     headless: bool | None = None,
@@ -135,7 +124,8 @@ def fetch_football_two_way(
             rows_td_vs_playwright,
             scroll_to_bottom_stable,
         )
-    except ImportError:
+    except ImportError as exc:
+        print(f"[inbet] ImportError: {exc!r}", flush=True)
         return []
 
     if headless is None:
@@ -146,41 +136,50 @@ def fetch_football_two_way(
             "",
         )
 
-    targets = urls or URLS
-    for url in targets:
-        try:
-            with sync_playwright() as p:
-                browser, context = default_playwright_context(p, headless=headless)
-                page = context.new_page()
-                page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                page.wait_for_timeout(5000)
-                _dismiss_cookies(page)
-                page.wait_for_timeout(wait_after_load_ms)
-                scroll_to_bottom_stable(page, pause_ms=1000, max_rounds=40, stable_needed=3)
+    try:
+        with sync_playwright() as p:
+            browser, context = default_playwright_context(p, headless=headless)
+            page = context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            html = page.content()
+            print(f"[debug] html length: {len(html)}", flush=True)
+            with open("/tmp/inbet_live.html", "w", encoding="utf-8") as f:
+                f.write(html)
+            print("[debug] saved to /tmp/inbet_live.html", flush=True)
+            # Изчакване за реални елементи със срещи/пазари, преди да парсваме.
+            for sel in ("td a", "[class*='event']", "[class*='match']", "body"):
+                try:
+                    page.wait_for_selector(sel, timeout=30_000)
+                    break
+                except Exception:
+                    continue
+            page.wait_for_timeout(5000)
+            _dismiss_cookies(page)
+            page.wait_for_timeout(wait_after_load_ms)
+            scroll_to_bottom_stable(page, pause_ms=1000, max_rounds=40, stable_needed=3)
 
-                body_text = page.inner_text("body")
-                rows_td = rows_td_vs_playwright(page, BOOK)
-                rows_dom = _try_inbet_dom_rows(page)
-                rows_s = parse_body_lines_1x2(body_text, BOOK)
-                rows_b = parse_body_lines_1x2_backward(body_text, BOOK)
-                rows = merge_rows_by_label(rows_td, rows_dom, rows_s, rows_b)
+            body_text = page.inner_text("body")
+            rows_td = rows_td_vs_playwright(page, BOOK)
+            rows_dom = _try_inbet_dom_rows(page)
+            rows_s = parse_body_lines_1x2(body_text, BOOK)
+            rows_b = parse_body_lines_1x2_backward(body_text, BOOK)
+            rows = merge_rows_by_label(rows_td, rows_dom, rows_s, rows_b)
 
-                context.close()
-                browser.close()
-                if rows:
-                    return rows
-        except Exception:
-            continue
-    return []
+            context.close()
+            browser.close()
+            return rows
+    except Exception as exc:
+        print(f"[inbet] error: {exc!r}", flush=True)
+        return []
 
 
 fetch_football_1x2 = fetch_football_two_way
 
 if __name__ == "__main__":
-    # По подразбиране headful; headless: INBET_HEADLESS=1 python3 scrapers/inbet.py
+    # По подразбиране headful; headless: INBET_HEADLESS=1 python3 -m scrapers.inbet
     os.environ.setdefault("INBET_HEADLESS", "0")
     _headless = os.environ.get("INBET_HEADLESS", "0").lower() in ("1", "true", "yes")
-    d = fetch_football_1x2(headless=_headless)
+    d = fetch_football_1x2(url=FOOTBALL_URL, headless=_headless)
     print("matches:", len(d))
     for r in d[:20]:
         print(r["label"], r["odd_1"], r["odd_x"], r["odd_2"])

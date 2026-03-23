@@ -36,7 +36,7 @@ CHROMIUM_LAUNCH_ARGS: list[str] = [
     "--disable-dev-shm-usage",
     "--disable-blink-features=AutomationControlled",
     "--ignore-certificate-errors",
-    "--host-resolver-rules=MAP www.efbet.com 172.64.154.130, MAP efbet.com 172.64.154.130, MAP www.winbet.bg 172.64.146.5, MAP winbet.bg 172.64.146.5, MAP www.betano.bg 172.64.154.136, MAP betano.bg 172.64.154.136",
+    "--host-resolver-rules=MAP www.efbet.com 172.64.154.130, MAP efbet.com 172.64.154.130, MAP www.winbet.bg 172.64.146.5, MAP winbet.bg 172.64.146.5, MAP www.betano.bg 172.64.154.136, MAP betano.bg 172.64.154.136, MAP www.palmsbet.com 104.20.25.63, MAP palmsbet.com 104.20.25.63, MAP www.inbet.bg 193.107.37.51, MAP inbet.bg 193.107.37.51",
 ]
 
 

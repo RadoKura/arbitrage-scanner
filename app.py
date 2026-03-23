@@ -709,7 +709,8 @@ def index():
         const p = Number(r.profit_percent);
         const hot = p >= hotProfitPct;
         const trc = rowTierClass(p);
-        const matchShow = (hot ? "🔥 " : "") + r.match;
+        const liveMark = r.is_live ? "🔴 LIVE " : "";
+        const matchShow = liveMark + (hot ? "🔥 " : "") + r.match;
         h += '<tr class="' + trc + '">';
         h += "<td>" + escapeHtml(matchShow) + "</td>";
         h += "<td>" + escapeHtml(fmtBook(r.book_1, r.odd_1)) + "</td>";

@@ -20,9 +20,12 @@ from calculator import (
     profit_tier_class,
     stakes_1x2_for_total,
 )
+from scrapers._common_1x2 import merge_rows_by_label_casefold
+from scrapers.betano import fetch_football_live as fetch_betano_live
 from scrapers.betano import fetch_football_two_way as fetch_betano
 from scrapers.efbet import fetch_football_for_scan as fetch_efbet
 from scrapers.palmsbet import fetch_football_two_way as fetch_palmsbet
+from scrapers.winbet import fetch_football_live as fetch_winbet_live
 from scrapers.winbet import fetch_football_for_scan as fetch_winbet
 
 # Минимално съотношение на SequenceMatcher за „същият отбор“ между сайтове.
@@ -233,6 +236,26 @@ def _fetch_all_books() -> dict[str, list[dict]]:
     return out
 
 
+def _merge_live_rows(rows_by_book: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Добавя live мачове към базовите редове за Winbet и Betano."""
+    merged = dict(rows_by_book)
+    try:
+        merged["winbet"] = merge_rows_by_label_casefold(
+            merged.get("winbet", []),
+            fetch_winbet_live(),
+        )
+    except Exception:
+        pass
+    try:
+        merged["betano"] = merge_rows_by_label_casefold(
+            merged.get("betano", []),
+            fetch_betano_live(),
+        )
+    except Exception:
+        pass
+    return merged
+
+
 def _display_label_for_key(key: str, books_map: dict[str, dict]) -> str:
     for bid, _ in BOOK_ORDER:
         if bid in books_map:
@@ -277,7 +300,7 @@ def _all_matches_payload(
 
 
 def run_scan() -> dict[str, Any]:
-    rows_by_book = _fetch_all_books()
+    rows_by_book = _merge_live_rows(_fetch_all_books())
     book_match_counts = {bid: len(rows_by_book.get(bid, [])) for bid, _ in BOOK_ORDER}
 
     by_key, pairing_report = _index_by_fuzzy_match(rows_by_book)
@@ -326,6 +349,7 @@ def run_scan() -> dict[str, Any]:
                 "stake_x_eur": rx,
                 "stake_2_eur": r2,
                 "books_matched_count": len(bm),
+                "is_live": any(bool(bm[b].get("is_live")) for b in bm),
             }
         )
 

@@ -151,11 +151,6 @@ def fetch_football_upcoming(
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
-            html = page.content()
-            print(f"[debug] html length: {len(html)}", flush=True)
-            with open("/tmp/efbet_live.html", "w", encoding="utf-8") as f:
-                f.write(html)
-            print("[debug] saved to /tmp/efbet_live.html", flush=True)
             page_soft_wait_selector(page, "td, main", timeout_ms=30_000)
             page.wait_for_timeout(5000)
             _efbet_open_football_listing(page, wait_after_nav_ms)
@@ -227,11 +222,6 @@ def fetch_football_two_way(
                 wait_until="domcontentloaded",
                 timeout=max(60_000, timeout_ms),
             )
-            html = page.content()
-            print(f"[debug] html length: {len(html)}", flush=True)
-            with open("/tmp/efbet_live.html", "w", encoding="utf-8") as f:
-                f.write(html)
-            print("[debug] saved to /tmp/efbet_live.html", flush=True)
             page_soft_wait_selector(page, "td, main", timeout_ms=30_000)
             page.wait_for_timeout(wait_after_load_ms)
             rows = _rows_from_playwright(page)
